@@ -1,0 +1,12 @@
+{
+    "name": "thunder",
+    "sdk": "go",
+    "dependencies": [
+        {
+            "name": "dagger",
+            "source": "github.com/dagger/dagger"
+        }
+    ],
+    "source": ".",
+    "engineVersion": "v0.15.3"
+}
