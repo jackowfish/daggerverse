@@ -11,8 +11,9 @@ This Dagger module provides integration with Thunder Compute for running workloa
 
 ```bash
 # Deploy a Dagger runner on Thunder Compute
-dagger -m github.com/jackowfish/thunder-dagger-module call deploy \
-  --token env:TNR_API_TOKEN
+dagger -m github.com/jackowfish/thunder-dagger-module call \
+  with-token "env:TNR_API_TOKEN" \
+  deploy
 
 # The command will return something like:
 export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-worker-xxxxx
@@ -21,20 +22,30 @@ export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-w
 # Now Dagger will execute all function calls using the remote Dagger Engine on Thunder
 
 # When done, destroy the Thunder instance (make sure to note the instance ID from the URL)
-dagger -m github.com/jackowfish/thunder-dagger-module call destroy \
-  --token env:TNR_API_TOKEN \
-  --instance-id dagger-worker-xxxxx
+dagger -m github.com/jackowfish/thunder-dagger-module call \
+  with-token "env:TNR_API_TOKEN" \
+  destroy --instance-id dagger-worker-xxxxx
 ```
 
 ## Functions
 
-### deploy
+### with-token
 
-Deploys a new Dagger runner on Thunder Compute.
+Configure the Thunder API token.
 
 Parameters:
 - `token` (required): Thunder API token for authentication
-- `base-url` (optional): Custom base URL for the Thunder API (defaults to dagger.thundercompute.org)
+
+### with-base-url
+
+Configure a custom base URL (optional).
+
+Parameters:
+- `url`: Custom base URL for the Thunder API (defaults to dagger.thundercompute.org)
+
+### deploy
+
+Deploys a new Dagger runner on Thunder Compute.
 
 Returns an environment variable command to use the remote runner.
 
@@ -43,7 +54,6 @@ Returns an environment variable command to use the remote runner.
 Destroys a Thunder Compute instance.
 
 Parameters:
-- `token` (required): Thunder API token for authentication
 - `instance-id` (required): ID of the Thunder instance to destroy (in format dagger-worker-xxxxx)
 
 ## Example
@@ -76,8 +86,9 @@ Or using the CLI:
 export TNR_API_TOKEN=your-token-here
 
 # Deploy a Dagger runner
-dagger -m github.com/jackowfish/thunder-dagger-module call deploy \
-  --token env:TNR_API_TOKEN
+dagger -m github.com/jackowfish/thunder-dagger-module call \
+  with-token "env:TNR_API_TOKEN" \
+  deploy
 
 # Copy and paste the returned export command
 export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-worker-xxxxx
@@ -85,9 +96,9 @@ export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-w
 # Run your Dagger workloads...
 
 # When done, cleanup the instance
-dagger -m github.com/jackowfish/thunder-dagger-module call destroy \
-  --token env:TNR_API_TOKEN \
-  --instance-id dagger-worker-xxxxx
+dagger -m github.com/jackowfish/thunder-dagger-module call \
+  with-token "env:TNR_API_TOKEN" \
+  destroy --instance-id dagger-worker-xxxxx
 ```
 
 ## API Details
