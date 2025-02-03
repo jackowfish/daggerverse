@@ -1,12 +1,5 @@
 {
-  "name": "thunder-compute",
-  "sdk": "go",
-  "dependencies": [
-    {
-      "name": "dagger",
-      "source": "github.com/dagger/dagger"
-    }
-  ],
-  "source": ".",
-  "engineVersion": "v0.15.3"
+  "name": "thunder",
+  "engineVersion": "v0.15.3",
+  "sdk": "python"
 }

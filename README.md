@@ -1,77 +1,106 @@
-# Thunder Compute Dagger Module
+# Thunder Dagger Module
 
 This Dagger module provides integration with Thunder Compute for running workloads on GPU-enabled Kubernetes nodes.
 
 ## Requirements
 
 - Dagger CLI installed
-- Thunder API token (TNR_API_TOKEN)
+- Thunder API token
 
 ## Usage
 
 ```bash
 # Deploy a Dagger runner on Thunder Compute
-dagger -m github.com/jackowfish/daggerverse/thunder call deploy-dagger-on-thunder \
-  --token env:TNR_API_TOKEN \
-  --disk-gb 200 \
-  --vcpu 8 \
-  --memory-gb 32
+dagger -m github.com/jackowfish/thunder-dagger-module call deploy \
+  --token env:TNR_API_TOKEN
 
 # The command will return something like:
-export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger-xxxxx.thundercompute.com:2375
+export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-worker-xxxxx
 
 # Copy and paste the export command to use the Thunder runner
 # Now Dagger will execute all function calls using the remote Dagger Engine on Thunder
 
 # When done, destroy the Thunder instance (make sure to note the instance ID from the URL)
-dagger -m github.com/jackowfish/daggerverse/thunder call destroy-dagger-on-thunder \
+dagger -m github.com/jackowfish/thunder-dagger-module call destroy \
   --token env:TNR_API_TOKEN \
-  --instance-id xxxxx
+  --instance-id dagger-worker-xxxxx
 ```
 
 ## Functions
 
-### deploy-dagger-on-thunder
+### deploy
 
 Deploys a new Dagger runner on Thunder Compute.
 
 Parameters:
 - `token` (required): Thunder API token for authentication
-- `disk-gb` (required): Disk space in GB
-- `vcpu` (required): Number of virtual CPUs
-- `memory-gb` (required): Memory in GB
+- `base-url` (optional): Custom base URL for the Thunder API (defaults to dagger.thundercompute.org)
 
 Returns an environment variable command to use the remote runner.
 
-### destroy-dagger-on-thunder
+### destroy
 
 Destroys a Thunder Compute instance.
 
 Parameters:
 - `token` (required): Thunder API token for authentication
-- `instance-id` (required): ID of the Thunder instance to destroy
+- `instance-id` (required): ID of the Thunder instance to destroy (in format dagger-worker-xxxxx)
 
 ## Example
 
 Here's how to use the Thunder module in a workflow:
 
+```python
+import dagger
+
+async def main():
+    # Initialize the Thunder client
+    thunder = dagger.Connection().thunder().with_token(dagger.Secret("your-token-here"))
+    
+    # Deploy a runner
+    cmd = await thunder.deploy()
+    print(f"Run this command: {cmd}")
+    
+    # Do your work with Dagger...
+    
+    # When done, cleanup the instance
+    # Extract instance ID from the host URL (e.g., dagger-worker-xxxxx)
+    await thunder.destroy("dagger-worker-xxxxx")
+
+```
+
+Or using the CLI:
+
 ```bash
 # Export your Thunder API token
 export TNR_API_TOKEN=your-token-here
 
-# Deploy a Dagger runner with custom resources
-dagger -m github.com/jackowfish/daggerverse/thunder call deploy-dagger-on-thunder \
-  --token env:TNR_API_TOKEN \
-  --disk-gb 500 \
-  --vcpu 16 \
-  --memory-gb 64
+# Deploy a Dagger runner
+dagger -m github.com/jackowfish/thunder-dagger-module call deploy \
+  --token env:TNR_API_TOKEN
 
 # Copy and paste the returned export command
-export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger-xxxxx.thundercompute.com:2375
+export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-worker-xxxxx
 
 # Run your Dagger workloads...
 
 # When done, cleanup the instance
-dagger -m github.com/jackowfish/daggerverse/thunder call destroy-dagger-on-thunder \
+dagger -m github.com/jackowfish/thunder-dagger-module call destroy \
   --token env:TNR_API_TOKEN \
-  --instance-id xxxxx
+  --instance-id dagger-worker-xxxxx
+```
+
+## API Details
+
+The module interacts with the Thunder API to:
+1. Create a new GPU-enabled pod
+2. Wait for the pod to be ready
+3. Return the connection URL
+4. Allow cleanup when done
+
+The pods are automatically configured with:
+- GPU support enabled
+- 4 vCPUs
+- 16GB memory
+- Docker socket access
+- Required NVIDIA configurations
