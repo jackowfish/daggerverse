@@ -10,3 +10,6 @@ dagger-io = { path = "sdk", editable = true }
 [build-system]
 requires = ["hatchling==1.25.0"]
 build-backend = "hatchling.build"
+
+[project.entry-points."dagger.mod"]
+main_object = "thunder:Thunder"
