@@ -8,20 +8,10 @@ import (
 
 type Module struct{}
 
-// ComputeConfig represents the compute resources for the Thunder instance
-type ComputeConfig struct {
-	DiskGB   int `doc:"Disk space in GB"`
-	VCPU     int `doc:"Number of virtual CPUs"`
-	MemoryGB int `doc:"Memory in GB"`
-}
-
 // DeployDaggerOnThunder creates a new Thunder compute instance with a Dagger runner
 func (m *Module) DeployDaggerOnThunder(
 	ctx context.Context,
 	token *Secret,
-	diskGB int,
-	vcpu int,
-	memoryGB int,
 ) (string, error) {
 	if token == nil {
 		return "", fmt.Errorf("TNR_API_TOKEN is required")
@@ -33,13 +23,13 @@ func (m *Module) DeployDaggerOnThunder(
 		WithExec([]string{"apk", "add", "curl", "jq"})
 
 	// Make API call to Thunder to create instance
-	createCmd := fmt.Sprintf(`
+	createCmd := `
 		curl -X POST "https://dagger.thundercompute.com/api/pods" \
 		-H "Authorization: Bearer $TNR_API_TOKEN" \
 		-H "Content-Type: application/json" \
-		-d '{"disk_gb":%d,"vcpu":%d,"memory_gb":%d,"runner":true}' \
+		-d '{}' \
 		| jq -r '.instance_id'
-	`, diskGB, vcpu, memoryGB)
+	`
 
 	result := base.WithExec([]string{"sh", "-c", createCmd})
 	instanceID, err := result.Stdout(ctx)
