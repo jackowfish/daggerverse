@@ -4,32 +4,51 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	
+	"dagger.io/dagger"
 )
 
-type Module struct{}
+type Module struct{
+	dag *dagger.Client
+	baseURL string
+}
+
+func New(dag *dagger.Client) *Module {
+	return &Module{
+		dag: dag,
+		baseURL: "dagger.jackdecker.org",
+	}
+}
+
+// SetBaseURL allows changing the default base URL
+func (m *Module) SetBaseURL(url string) {
+	m.baseURL = url
+}
 
 // DeployDaggerOnThunder creates a new Thunder compute instance with a Dagger runner
 func (m *Module) DeployDaggerOnThunder(
 	ctx context.Context,
-	token *Secret,
+	token *dagger.Secret,
 ) (string, error) {
 	if token == nil {
 		return "", fmt.Errorf("TNR_API_TOKEN is required")
 	}
 
+	apiURL := fmt.Sprintf("https://%s/api", m.baseURL)
+
 	// Create a base container for making API calls
-	base := dag.Container().From("alpine:latest").
+	base := m.dag.Container().From("alpine:latest").
 		WithSecretVariable("TNR_API_TOKEN", token).
 		WithExec([]string{"apk", "add", "curl", "jq"})
 
 	// Make API call to Thunder to create instance
-	createCmd := `
-		curl -X POST "https://dagger.thundercompute.com/api/pods" \
+	createCmd := fmt.Sprintf(`
+		curl -X POST "%s/pods" \
 		-H "Authorization: Bearer $TNR_API_TOKEN" \
 		-H "Content-Type: application/json" \
 		-d '{}' \
 		| jq -r '.instance_id'
-	`
+	`, apiURL)
 
 	result := base.WithExec([]string{"sh", "-c", createCmd})
 	instanceID, err := result.Stdout(ctx)
@@ -37,27 +56,32 @@ func (m *Module) DeployDaggerOnThunder(
 		return "", fmt.Errorf("failed to create Thunder instance: %w", err)
 	}
 
+	instanceID = strings.TrimSpace(instanceID)
+
 	// Wait for instance to be ready
 	waitCmd := fmt.Sprintf(`
 		while true; do
 			status=$(curl -s -H "Authorization: Bearer $TNR_API_TOKEN" \
-				"https://dagger.thundercompute.com/api/pods/%s" \
+				"%s/pods/%s" \
 				| jq -r '.status')
 			if [ "$status" = "running" ]; then
 				break
 			fi
 			sleep 5
 		done
-	`, strings.TrimSpace(instanceID))
+	`, apiURL, instanceID)
 
-	base = base.WithExec([]string{"sh", "-c", waitCmd})
+	_, err = base.WithExec([]string{"sh", "-c", waitCmd}).Sync(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed waiting for instance to be ready: %w", err)
+	}
 
 	// Get instance connection details
 	getHostCmd := fmt.Sprintf(`
 		curl -s -H "Authorization: Bearer $TNR_API_TOKEN" \
-		"https://dagger.thundercompute.com/api/pods/%s" \
+		"%s/pods/%s" \
 		| jq -r '.host'
-	`, strings.TrimSpace(instanceID))
+	`, apiURL, instanceID)
 
 	result = base.WithExec([]string{"sh", "-c", getHostCmd})
 	host, err := result.Stdout(ctx)
@@ -72,23 +96,24 @@ func (m *Module) DeployDaggerOnThunder(
 // DestroyDaggerOnThunder destroys a Thunder compute instance
 func (m *Module) DestroyDaggerOnThunder(
 	ctx context.Context,
-	token *Secret,
+	token *dagger.Secret,
 	instanceID string,
 ) error {
 	if token == nil {
 		return fmt.Errorf("TNR_API_TOKEN is required")
 	}
 
+	apiURL := fmt.Sprintf("https://%s/api", m.baseURL)
+
 	deleteCmd := fmt.Sprintf(`
-		curl -X DELETE "https://dagger.thundercompute.com/api/pods/%s" \
+		curl -X DELETE "%s/pods/%s" \
 		-H "Authorization: Bearer $TNR_API_TOKEN"
-	`, instanceID)
+	`, apiURL, instanceID)
 
-	base := dag.Container().From("alpine:latest").
+	base := m.dag.Container().From("alpine:latest").
 		WithSecretVariable("TNR_API_TOKEN", token).
-		WithExec([]string{"apk", "add", "curl"}).
-		WithExec([]string{"sh", "-c", deleteCmd})
+		WithExec([]string{"apk", "add", "curl"})
 
-	_, err := base.Sync(ctx)
+	_, err := base.WithExec([]string{"sh", "-c", deleteCmd}).Sync(ctx)
 	return err
 }
