@@ -1,5 +1,5 @@
 {
-  "name": "thunder",
+  "name": "thunder-compute",
   "sdk": "go",
   "dependencies": [
     {
