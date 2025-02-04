@@ -57,7 +57,7 @@ class Thunder(Module):
             if not host.strip() or not port.strip():
                 raise RuntimeError(f"Failed to get host/port from API response: {response}")
 
-            return f"export _EXPERIMENTAL_DAGGER_RUNNER_HOST={host.strip()}:{port.strip()}"
+            return f"export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://{host.strip()}:{port.strip()}"
 
         except Exception as e:
             raise RuntimeError(f"Failed to deploy Thunder instance: {str(e)}")
