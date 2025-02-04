@@ -28,32 +28,14 @@ class Thunder(Module):
             raw_response = await (
                 container
                 .with_exec([
-                    "curl",
-                    "-s",  # silent
-                    "-H", f"Authorization: Bearer {token}",
-                    "-H", "Content-Type: application/json",
-                    "-d", "{}",  # Empty JSON body
-                    f"{api_url}/api/pods"
-                ])
-                .stdout()
-            )
-
-            # Check if curl failed
-            if raw_response == "CURL_FAILED":
-                raise RuntimeError("Failed to make API request")
-
-            # Validate JSON response
-            json_valid = await (
-                container
-                .with_exec([
                     "sh", "-c",
-                    f"echo '{raw_response}' | jq . >/dev/null 2>&1 && echo 'VALID' || echo 'INVALID'"
+                    f"curl -s -X POST '{api_url}/pods' "
+                    f"-H 'Authorization: Bearer {token}' "
+                    f"-H 'Content-Type: application/json' "
+                    f"-d '{{}}'"
                 ])
                 .stdout()
             )
-
-            if json_valid.strip() == "INVALID":
-                raise RuntimeError(f"Invalid JSON response from API: {raw_response}")
 
             # Parse instance_id and host
             instance_id = await (
@@ -108,7 +90,7 @@ class Thunder(Module):
                 container
                 .with_exec([
                     "sh", "-c",
-                    f"curl -s -X DELETE '{api_url}/api/pods/{instance_id}' "
+                    f"curl -s -X DELETE '{api_url}/pods/{instance_id}' "
                     f"-H 'Authorization: Bearer {token}'"
                 ])
                 .sync()
