@@ -89,23 +89,24 @@ class Thunder(Module):
                 .sync()
             )
 
-            # Get host URL
-            host = await (
+            # Get host URL and port
+            host_info = await (
                 container
                 .with_exec([
                     "sh", "-c",
                     f"curl -k -s -H 'Authorization: Bearer $TNR_API_TOKEN' "
-                    f"'{api_url}/pods/{instance_id}' | jq -r '.host'"
+                    f"'{api_url}/pods/{instance_id}' | jq -r '.host,.port'"
                 ])
                 .stdout()
             )
-            host = host.strip()
+            host, port = host_info.strip().split('\n')
 
-            if not host or host == "null":
-                raise RuntimeError(f"Failed to get host URL from API response for instance {instance_id}")
+            if not host or host == "null" or not port or port == "null":
+                raise RuntimeError(f"Failed to get host/port from API response for instance {instance_id}")
 
-            # Return the environment variable command
-            return f"export _EXPERIMENTAL_DAGGER_RUNNER_HOST={host}"
+            # Return the environment variable command with host:port
+            # Note: host already includes 'tcp://' prefix from the API
+            return f"export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://{host}:{port}"
 
         except Exception as e:
             raise RuntimeError(f"Failed to deploy Thunder instance: {str(e)}")
