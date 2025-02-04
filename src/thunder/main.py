@@ -21,7 +21,6 @@ class Thunder(Module):
             dag.container()
             .from_("alpine:latest")
             .with_exec(["apk", "add", "--no-cache", "curl", "jq"])
-            .with_env_variable("TNR_API_TOKEN", token)
         )
 
         try:
@@ -31,7 +30,7 @@ class Thunder(Module):
                 .with_exec([
                     "sh", "-c",
                     f"curl -k -s -X POST '{api_url}/pod/create' "
-                    f"-H 'Authorization: Bearer $TNR_API_TOKEN' "
+                    f"-H 'Authorization: Bearer {token}' "
                     f"-H 'Content-Type: application/json'"
                 ])
                 .stdout()
@@ -83,7 +82,6 @@ class Thunder(Module):
                 dag.container()
                 .from_("alpine:latest")
                 .with_exec(["apk", "add", "--no-cache", "curl"])
-                .with_env_variable("TNR_API_TOKEN", token)
             )
 
             await (
@@ -91,7 +89,7 @@ class Thunder(Module):
                 .with_exec([
                     "sh", "-c",
                     f"curl -k -s -X DELETE '{api_url}/pod/{instance_id}/delete' "
-                    f"-H 'Authorization: Bearer $TNR_API_TOKEN'"
+                    f"-H 'Authorization: Bearer {token}'"
                 ])
                 .sync()
             )
