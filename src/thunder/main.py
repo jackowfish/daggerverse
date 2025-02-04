@@ -14,8 +14,8 @@ class Thunder(Module):
         if not token:
             raise ValueError("Token is required")
 
-        base_url = "api.thundercompute.com"
-        api_url = f"https://{base_url}:8443"
+        base_url = "dagger.thundercompute.com"
+        api_url = f"https://{base_url}"
 
         container = (
             dag.container()
@@ -24,40 +24,60 @@ class Thunder(Module):
         )
 
         try:
-            # Create pod
-            response = await (
+            # Create pod and store raw response
+            raw_response = await (
                 container
                 .with_exec([
-                    "sh", "-c",
-                    f"curl -k -s -X POST '{api_url}/pod/create' "
-                    f"-H 'Authorization: Bearer {token}' "
-                    f"-H 'Content-Type: application/json'"
+                    "curl",
+                    "-s",  # silent
+                    "-H", f"Authorization: Bearer {token}",
+                    "-H", "Content-Type: application/json",
+                    "-d", "{}",  # Empty JSON body
+                    f"{api_url}/api/pods"
                 ])
                 .stdout()
             )
 
-            # Parse host and port
+            # Check if curl failed
+            if raw_response == "CURL_FAILED":
+                raise RuntimeError("Failed to make API request")
+
+            # Validate JSON response
+            json_valid = await (
+                container
+                .with_exec([
+                    "sh", "-c",
+                    f"echo '{raw_response}' | jq . >/dev/null 2>&1 && echo 'VALID' || echo 'INVALID'"
+                ])
+                .stdout()
+            )
+
+            if json_valid.strip() == "INVALID":
+                raise RuntimeError(f"Invalid JSON response from API: {raw_response}")
+
+            # Parse instance_id and host
+            instance_id = await (
+                container
+                .with_exec([
+                    "sh", "-c",
+                    f"echo '{raw_response}' | jq -r '.instance_id // empty'"
+                ])
+                .stdout()
+            )
             host = await (
                 container
                 .with_exec([
                     "sh", "-c",
-                    f"echo '{response}' | jq -r '.host'"
-                ])
-                .stdout()
-            )
-            port = await (
-                container
-                .with_exec([
-                    "sh", "-c",
-                    f"echo '{response}' | jq -r '.port'"
+                    f"echo '{raw_response}' | jq -r '.host // empty'"
                 ])
                 .stdout()
             )
 
-            if not host.strip() or not port.strip():
-                raise RuntimeError(f"Failed to get host/port from API response: {response}")
+            if not host.strip() or not instance_id.strip():
+                raise RuntimeError(f"Failed to get host/instance_id from API response: {raw_response}")
 
-            return f'''export _EXPERIMENTAL_DAGGER_RUNNER_HOST="tcp://{host.strip()}:{port.strip()}"'''
+            # The host already includes the full TCP URL
+            return f'export _EXPERIMENTAL_DAGGER_RUNNER_HOST="{host.strip()}"'
 
         except Exception as e:
             raise RuntimeError(f"Failed to deploy Thunder instance: {str(e)}")
@@ -74,7 +94,7 @@ class Thunder(Module):
         if not instance_id:
             raise ValueError("Instance ID is required")
 
-        base_url = "api.thundercompute.com"
+        base_url = "dagger.thundercompute.com"
         api_url = f"https://{base_url}"
 
         try:
@@ -88,7 +108,7 @@ class Thunder(Module):
                 container
                 .with_exec([
                     "sh", "-c",
-                    f"curl -k -s -X DELETE '{api_url}/pod/{instance_id}/delete' "
+                    f"curl -s -X DELETE '{api_url}/api/pods/{instance_id}' "
                     f"-H 'Authorization: Bearer {token}'"
                 ])
                 .sync()
