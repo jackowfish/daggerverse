@@ -15,7 +15,7 @@ class Thunder(Module):
             raise ValueError("Token is required")
 
         base_url = "api.thundercompute.com"
-        api_url = f"https://{base_url}"
+        api_url = f"https://{base_url}:8443"
 
         container = (
             dag.container()
