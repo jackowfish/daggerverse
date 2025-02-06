@@ -1,3 +1,5 @@
+> Please note that this is a WIP for an MVP to get Dagger working on ThunderCompute. This uses a custom dagger engine here: https://github.com/jackowfish/thunder-dagger
+
 # Thunder Dagger Module
 
 This Dagger module provides integration with Thunder Compute for running workloads on GPU-enabled Kubernetes nodes.
