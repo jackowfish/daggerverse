@@ -20,6 +20,8 @@ class Thunder(Module):
     async def deploy(self, token: Annotated[str, Doc("Thunder API token")]) -> str:
         """Deploy a new Thunder compute instance with a Dagger runner"""
         if not token:
+            token = os.getenv("TNR_API_TOKEN")
+        if not token:
             raise ValueError("Token is required")
 
         container = (
@@ -44,9 +46,9 @@ class Thunder(Module):
 
             # Parse the JSON response
             response_data = json.loads(raw_response)
-            instance_id = response_data['instance_id']
-            private_key = response_data['private_key']
-            host = response_data['host']
+            instance_id = response_data.get('instance_id')
+            private_key = response_data.get('private_key')
+            host = response_data.get('host')
 
             if not instance_id:
                 raise RuntimeError(f"Failed to get instance_id from API response: {raw_response}")
@@ -77,6 +79,30 @@ class Thunder(Module):
                     keys_dir = os.path.join(thunder_dir, "keys")
                     key_path = os.path.join(keys_dir, f"{instance_id}")
                     
+                    # Wait for SSH to be ready and get host key
+                    host_key = await (
+                        container
+                        .from_("alpine:latest")
+                        .with_exec(["apk", "add", "--no-cache", "openssh-client"])
+                        .with_env_variable("CACHEBUSTER", str(time()))
+                        .with_exec([
+                            "sh", "-c",
+                            # Retry ssh-keyscan with proper error handling
+                            f'''for i in $(seq 1 10); do
+                                echo "Attempt $i: Scanning host {host}..."
+                                if KEY=$(ssh-keyscan -H {host} 2>/dev/null); then
+                                    echo "$KEY"
+                                    exit 0
+                                fi
+                                echo "Failed attempt $i, waiting before retry..."
+                                sleep 3
+                            done
+                            echo "Failed to get host key after 10 attempts"
+                            exit 1'''
+                        ])
+                        .stdout()
+                    )
+                    
                     # Create instructions for setting up the key
                     setup_instructions = [
                     f'mkdir -p {keys_dir}',
@@ -87,16 +113,20 @@ class Thunder(Module):
                     f'ssh-add {key_path}',
                     'mkdir -p ~/.ssh',
                     'chmod 700 ~/.ssh',
-                    # Append to SSH config instead of overwriting
+                    # Add host key to known_hosts
+                    f'cat > ~/.ssh/known_hosts.tmp << EOL\n{host_key}\nEOL',
+                    'cat ~/.ssh/known_hosts.tmp >> ~/.ssh/known_hosts',
+                    'rm ~/.ssh/known_hosts.tmp',
+                    'chmod 600 ~/.ssh/known_hosts',
+                    # Add SSH config
                     f'''cat >> ~/.ssh/config << 'EOF'
-\nHost {host.split('@')[1].split(':')[0]}
-    StrictHostKeyChecking no
-    UserKnownHostsFile /dev/null
+\nHost {host}
+    User root
     IdentityFile {key_path}
 
-EOF''',  # Note: the EOF needs to be at the start of the line
+EOF''',
                     'chmod 600 ~/.ssh/config',
-                    f'''echo -e "export _EXPERIMENTAL_DAGGER_RUNNER_HOST="{host}:22""'''
+                    f'''echo -e "export _EXPERIMENTAL_DAGGER_RUNNER_HOST="ssh://root@{host}:22""'''
                 ]
                     
                     return "\n".join(setup_instructions)
@@ -194,7 +224,7 @@ EOF''',  # Note: the EOF needs to be at the start of the line
             status_data = json.loads(status_response)
             host = status_data.get('host', '')
             if host:
-                host = host.split('@')[1].split(':')[0]
+                host = host
 
             # Destroy the instance
             await (
@@ -214,18 +244,17 @@ EOF''',  # Note: the EOF needs to be at the start of the line
             key_path = os.path.join(keys_dir, f"{instance_id}")
             
             cleanup_instructions = [
-                f'rm -f {key_path}'
+                f'rm -f {key_path}',
+                # Remove host from known_hosts if it exists
+                f'ssh-keygen -R {host} 2>/dev/null || true',
+                # Remove SSH config entry if it exists
+                'if [ -f ~/.ssh/config ]; then',
+                '  # Create temp file without the host entry',
+                f'  awk \'/^Host {host}/{{skip=1;next}} /^$/ {{if (skip) {{skip=0;next}} else print}} !skip{{print}}\' ~/.ssh/config > ~/.ssh/config.tmp',
+                '  # Replace original with temp file',
+                '  mv ~/.ssh/config.tmp ~/.ssh/config',
+                'fi'
             ]
-
-            if host:
-                cleanup_instructions.extend([
-                    'if [ -f ~/.ssh/config ]; then',
-                    '  # Create temp file without the host entry',
-                    f'  awk \'/^Host {host}/{{skip=1;next}} /^$/ {{if (skip) {{skip=0;next}} else print}} !skip{{print}}\' ~/.ssh/config > ~/.ssh/config.tmp',
-                    '  # Replace original with temp file',
-                    '  mv ~/.ssh/config.tmp ~/.ssh/config',
-                    'fi'
-                ])
 
             return "\n".join(cleanup_instructions)
 
