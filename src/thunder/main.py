@@ -17,12 +17,10 @@ class Thunder(Module):
     """Thunder provides integration with Thunder Compute for GPU workloads"""
 
     @function
-    async def deploy(self, token: Annotated[str, Doc("Thunder API token")]) -> str:
+    async def deploy(self, token: Annotated[str, Doc("Thunder API token")], gpu_type: Annotated[str, Doc("GPU type")] = "t4") -> str:
         """Deploy a new Thunder compute instance with a Dagger runner"""
-        if not token:
-            token = os.getenv("TNR_API_TOKEN")
-        if not token:
-            raise ValueError("Token is required")
+        if gpu_type not in ['t4', 'a100', 'a100xl']:
+            gpu_type = 't4'
 
         container = (
             dag.container()
@@ -38,7 +36,7 @@ class Thunder(Module):
                 .with_env_variable("CACHEBUSTER", str(time()))
                 .with_exec([
                     "sh", "-c",
-                    f"curl -s -X POST '{THUNDER_API_ENDPOINT}/pods' "
+                    f"curl -s -X POST '{THUNDER_API_ENDPOINT}/pods/{gpu_type}/1' "
                     f"-H 'Authorization: Bearer {token}' "
                 ])
                 .stdout()
