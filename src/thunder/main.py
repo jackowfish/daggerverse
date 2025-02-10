@@ -47,9 +47,12 @@ class Thunder(Module):
             instance_id = response_data.get('instance_id')
             private_key = response_data.get('private_key')
             host = response_data.get('host')
+            port = response_data.get('port')
 
             if not instance_id:
                 raise RuntimeError(f"Failed to get instance_id from API response: {raw_response}")
+            if not port:
+                raise RuntimeError(f"Failed to get port from API response: {raw_response}")
 
             # Wait for pod to be ready
             max_retries = 30
@@ -93,14 +96,13 @@ class Thunder(Module):
                         .with_env_variable("CACHEBUSTER", str(time()))
                         .with_exec([
                             "sh", "-c",
-                            # Retry ssh-keyscan with proper error handling
+                            # Retry ssh-keyscan with proper error handling and port
                             f'''for i in $(seq 1 10); do
-                                echo "Attempt $i: Scanning host {host}..."
-                                if KEY=$(ssh-keyscan -H {host} 2>/dev/null); then
+                                echo "Attempt $i: Scanning host {host} port {port}..."
+                                if KEY=$(ssh-keyscan -H -p {port} {host} 2>/dev/null); then
                                     echo "$KEY"
                                     exit 0
                                 fi
-                                echo "Failed attempt $i, waiting before retry..."
                                 sleep 3
                             done
                             echo "Failed to get host key after 10 attempts"
@@ -111,29 +113,30 @@ class Thunder(Module):
                     
                     # Create instructions for setting up the key
                     setup_instructions = [
-                    f'mkdir -p {keys_dir}',
-                    f'chmod 700 {thunder_dir} {keys_dir}',
-                    f'cat > {key_path} << EOL\n{private_key}\nEOL',
-                    f'chmod 600 {key_path}',
-                    f'eval $(ssh-agent)',
-                    f'ssh-add {key_path}',
-                    'mkdir -p ~/.ssh',
-                    'chmod 700 ~/.ssh',
-                    # Add host key to known_hosts
-                    f'cat > ~/.ssh/known_hosts.tmp << EOL\n{host_key}\nEOL',
-                    'cat ~/.ssh/known_hosts.tmp >> ~/.ssh/known_hosts',
-                    'rm ~/.ssh/known_hosts.tmp',
-                    'chmod 600 ~/.ssh/known_hosts',
-                    # Add SSH config
-                    f'''cat >> ~/.ssh/config << 'EOF'
+                        f'mkdir -p {keys_dir}',
+                        f'chmod 700 {thunder_dir} {keys_dir}',
+                        f'cat > {key_path} << EOL\n{private_key}\nEOL',
+                        f'chmod 600 {key_path}',
+                        f'eval $(ssh-agent)',
+                        f'ssh-add {key_path}',
+                        'mkdir -p ~/.ssh',
+                        'chmod 700 ~/.ssh',
+                        # Add host key to known_hosts with port
+                        f'cat > ~/.ssh/known_hosts.tmp << EOL\n[{host}]:{port} {host_key}\nEOL',
+                        'cat ~/.ssh/known_hosts.tmp >> ~/.ssh/known_hosts',
+                        'rm ~/.ssh/known_hosts.tmp',
+                        'chmod 600 ~/.ssh/known_hosts',
+                        # Add SSH config with port
+                        f'''cat >> ~/.ssh/config << 'EOF'
 \nHost {host}
     User root
+    Port {port}
     IdentityFile {key_path}
 
 EOF''',
-                    'chmod 600 ~/.ssh/config',
-                    f'''echo -e "export _EXPERIMENTAL_DAGGER_RUNNER_HOST="ssh://root@{host}:22""'''
-                ]
+                        'chmod 600 ~/.ssh/config',
+                        f'''echo -e "export _EXPERIMENTAL_DAGGER_RUNNER_HOST="ssh://root@{host}:{port}""'''
+                    ]
                     
                     return "\n".join(setup_instructions)
 
