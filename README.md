@@ -14,10 +14,10 @@ This Dagger module provides integration with Thunder Compute for running workloa
 ```bash
 # Deploy a Dagger runner on Thunder Compute
 dagger -m github.com/jackowfish/thunder-dagger-module call deploy \
-  --token "$TNR_API_TOKEN"
+  --token "$TNR_API_TOKEN" | bash
 
 # The command will return something like:
-export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-worker-xxxxx
+export _EXPERIMENTAL_DAGGER_RUNNER_HOST=ssh://<ip>:<port>
 
 # Copy and paste the export command to use the Thunder runner
 # Now Dagger will execute all function calls using the remote Dagger Engine on Thunder
@@ -70,27 +70,6 @@ async def main():
 
 ```
 
-Or using the CLI:
-
-```bash
-# Export your Thunder API token
-export TNR_API_TOKEN=your-token-here
-
-# Deploy a Dagger runner
-dagger -m github.com/jackowfish/thunder-dagger-module call deploy \
-  --token "$TNR_API_TOKEN"
-
-# Copy and paste the returned export command
-export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://dagger.thundercompute.org/dagger-worker-xxxxx
-
-# Run your Dagger workloads...
-
-# When done, cleanup the instance
-dagger -m github.com/jackowfish/thunder-dagger-module call destroy \
-  --token "$TNR_API_TOKEN" \
-  --instance-id dagger-worker-xxxxx
-```
-
 ## API Details
 
 The module interacts with the Thunder API to:
@@ -103,5 +82,3 @@ The pods are automatically configured with:
 - GPU support enabled
 - 4 vCPUs
 - 16GB memory
-- Docker socket access
-- Required NVIDIA configurations
