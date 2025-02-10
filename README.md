@@ -1,4 +1,4 @@
-> Please note that this is a WIP for an MVP to get Dagger working on ThunderCompute. This uses a custom dagger engine here: https://github.com/jackowfish/thunder-dagger
+> Please note that this is a WIP for an MVP to get Dagger working on ThunderCompute. This uses a custom dagger engine here: https://github.com/jackowfish/dagger-thunder
 
 # Thunder Dagger Module
 
