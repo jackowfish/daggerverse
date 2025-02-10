@@ -54,21 +54,29 @@ class Thunder(Module):
             # Wait for pod to be ready
             max_retries = 30
             retry_count = 0
+            
+            # Create a container for status checks
+            status_container = (
+                container
+                .with_exec(["apk", "add", "--no-cache", "curl"])
+            )
+            
             while retry_count < max_retries:
                 status_response = await (
-                    container
+                    status_container
                     .with_env_variable("CACHEBUSTER", str(time()))
                     .with_exec([
                         "sh", "-c",
-                        f"curl -s '{THUNDER_API_ENDPOINT}/pods/{instance_id.strip()}' "
-                        f"-H 'Authorization: Bearer {token}'"
+                        f'''sleep {3 if retry_count > 0 else 0} && '''
+                        f'''curl -s '{THUNDER_API_ENDPOINT}/pods/{instance_id.strip()}' '''
+                        f'''-H 'Authorization: Bearer {token}' '''
                     ])
                     .stdout()
                 )
 
                 # Parse status response
                 status_data = json.loads(status_response)
-                print(status_data)
+                print(f"Attempt {retry_count + 1}/{max_retries}: Status = {status_data.get('status', '')}")
                 status = status_data.get('status', '')
 
                 if status == "running":
@@ -130,12 +138,6 @@ EOF''',
                     return "\n".join(setup_instructions)
 
                 retry_count += 1
-                if retry_count < max_retries:
-                    await (
-                        container
-                        .with_exec(["sleep", "3"])
-                        .sync()
-                    )
 
             raise RuntimeError("Timed out waiting for Thunder instance to be ready")
 
